@@ -255,20 +255,15 @@ h1 {
   margin: 0;
 }
 
-.teaser a {
-  display: block;
-}
-
-.teaser a:focus-visible {
+.teaser video:focus-visible {
   outline: 3px solid var(--blue);
   outline-offset: 8px;
 }
 
-.teaser img {
+.teaser video {
   display: block;
   width: 100%;
   height: auto;
-  mix-blend-mode: multiply;
 }
 
 .abstract {
