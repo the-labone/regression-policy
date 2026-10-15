@@ -1,0 +1,223 @@
+diff --git a/src/lerobot/policies/pi05/configuration_pi05.py b/src/lerobot/policies/pi05/configuration_pi05.py
+index 85cbe61..76c9610 100644
+--- a/src/lerobot/policies/pi05/configuration_pi05.py
++++ b/src/lerobot/policies/pi05/configuration_pi05.py
+@@ -55,6 +55,20 @@ class PI05Config(PreTrainedConfig):
+     max_state_dim: int = 32
+     max_action_dim: int = 32
+ 
++    # Training objective for the action expert. "flow" is the stock flow-matching
++    # objective. "mse" and "hetero_t" train the deterministic single-pass predictor
++    # a_hat = -v(0, t=1) (one forward pass at the noise=0, t=1 point): "mse" with
++    # plain MSE, "hetero_t" with a multivariate Student-t NLL using a learned
++    # per-sample scalar scale sigma = mean(softplus(s_raw + ht_sbias)) + 1e-3.
++    # Both non-flow modes also sample with a single Euler step from zero noise.
++    loss_type: str = "flow"
++    ht_sbias: float = 0.0  # softplus^-1(initial residual RMS); pi05_libero_base probe: -0.396
++    ht_df: float = 2.0
++    ht_mvt: bool = False  # true multivariate t: 0.5(nu+d)*log1p(S/(nu*sigma^2))
++    ht_gripper_bce: bool = False  # Bernoulli NLL on the gripper column, Student-t on the other columns
++    ht_gripper_dim: int = 6
++    ht_gripper_bce_weight: float = 1.0
++
+     # Flow matching parameters: see openpi `PI0Pytorch`
+     num_inference_steps: int = 10
+     time_sampling_beta_alpha: float = 1.5
+diff --git a/src/lerobot/policies/pi05/modeling_pi05.py b/src/lerobot/policies/pi05/modeling_pi05.py
+index 2a8d4f4..f055a5c 100644
+--- a/src/lerobot/policies/pi05/modeling_pi05.py
++++ b/src/lerobot/policies/pi05/modeling_pi05.py
+@@ -447,6 +447,18 @@ class PI05Pytorch(nn.Module):  # see openpi `PI0Pytorch`
+         self.action_in_proj = nn.Linear(config.max_action_dim, action_expert_config.width)
+         self.action_out_proj = nn.Linear(action_expert_config.width, config.max_action_dim)
+ 
++        # Sigma head for the hetero_t objective: per-sample scalar scale from the
++        # expert's suffix output. Fresh-initialized; absent from flow checkpoints.
++        self.sigma_out_proj = (
++            nn.Linear(action_expert_config.width, 1)
++            if getattr(config, "loss_type", "flow") == "hetero_t"
++            else None
++        )
++        # Bernoulli gripper head: normalized values of the two demonstrated classes (EMA over training batches),
++        # so the readout reproduces the demonstrated command under any normalizer (R1-1). Default +/-1.
++        if bool(getattr(config, "ht_gripper_bce", False)):   # only for Bernoulli-head models: flow checkpoints load strictly
++            self.register_buffer("bern_class_vals", torch.tensor([-1.0, 1.0]), persistent=True)
++
+         self.time_mlp_in = nn.Linear(action_expert_config.width, action_expert_config.width)
+         self.time_mlp_out = nn.Linear(action_expert_config.width, action_expert_config.width)
+         self.proprio_history_proj = (
+@@ -662,7 +674,12 @@ class PI05Pytorch(nn.Module):  # see openpi `PI0Pytorch`
+ 
+         v_t = self._apply_checkpoint(action_out_proj_func, suffix_out)
+ 
+-        return F.mse_loss(u_t, v_t, reduction="none")
++        losses = F.mse_loss(u_t, v_t, reduction="none")
++        if self.sigma_out_proj is not None:
++            # Per-sample scalar log-scale precursor, fp32 (suffix_out already fp32).
++            s_raw = self.sigma_out_proj(suffix_out).mean(dim=(1, 2))
++            return losses, s_raw, v_t
++        return losses
+ 
+     @torch.no_grad()  # see openpi `sample_actions` (slightly adapted)
+     def sample_actions(
+@@ -684,6 +701,15 @@ class PI05Pytorch(nn.Module):  # see openpi `PI0Pytorch`
+         bsize = tokens.shape[0]
+         device = tokens.device
+ 
++        if getattr(self.config, "loss_type", "flow") != "flow":
++            # Single-pass head: one Euler step from x=0 at t=1 gives a_hat = -v(0, 1),
++            # the deterministic predictor these objectives train.
++            num_steps = 1
++            if noise is not None and not getattr(self, "_zero_noise_warned", False):
++                self._zero_noise_warned = True
++                print("[pi05-single-pass] supplied noise ignored: the single-pass predictor is a_hat = -v(0, 1)", flush=True)
++            noise = torch.zeros((bsize, self.config.chunk_size, self.config.max_action_dim), device=device)
++
+         if noise is None:
+             # Sample noise with padded dimension as expected by action_in_proj
+             actions_shape = (
+@@ -710,7 +736,7 @@ class PI05Pytorch(nn.Module):  # see openpi `PI0Pytorch`
+             use_cache=True,
+         )
+ 
+-        return euler_integrate(
++        x_0 = euler_integrate(
+             lambda input_x_t, current_timestep: self.denoise_step(
+                 prefix_pad_masks=prefix_pad_masks,
+                 past_key_values=past_key_values,
+@@ -725,6 +751,20 @@ class PI05Pytorch(nn.Module):  # see openpi `PI0Pytorch`
+             prev_chunk_left_over=kwargs.get("prev_chunk_left_over"),
+             execution_horizon=kwargs.get("execution_horizon"),
+         )
++        if bool(getattr(self.config, "ht_gripper_bce", False)):
++            # Bernoulli gripper head. Default: MAP decision (+/-1 normalized). PI05_BERN_READOUT=soft emits the
++            # posterior mean tanh(logit/2) instead (readout ablation).
++            _gdim = int(getattr(self.config, "ht_gripper_dim", 6)); x_0 = x_0.clone()
++            _lg = x_0[..., _gdim]
++            _soft = __import__("os").environ.get("PI05_BERN_READOUT", "hard") == "soft"
++            self._bern_n = getattr(self, "_bern_n", 0) + 1
++            if self._bern_n == 1 or self._bern_n % 200 == 0:
++                print(f"[pi05-gripper-bce] readout={'soft' if _soft else 'hard'} |logit| mean={float(_lg.abs().mean()):.2f} "
++                      f"frac(|logit|<0.1)={float((_lg.abs() < 0.1).float().mean()):.4f} (call {self._bern_n})", flush=True)
++            _neg, _pos = self.bern_class_vals.to(x_0.device, x_0.dtype)
++            _p = torch.sigmoid(_lg) if _soft else (_lg > 0).to(x_0.dtype)
++            x_0[..., _gdim] = (_neg + (_pos - _neg) * _p).to(x_0.dtype)        # MAP endpoint, or posterior mean between the endpoints
++        return x_0
+ 
+     def denoise_step(
+         self,
+@@ -890,6 +930,11 @@ class PI05Policy(PreTrainedPolicy):
+ 
+             remapped_state_dict = model._prepare_pretrained_state_dict(remapped_state_dict)
+ 
++            # hetero_t adds a fresh sigma head absent from flow checkpoints; relax
++            # strictness so its keys stay at their fresh init (they are reported below).
++            if getattr(model.config, "loss_type", "flow") == "hetero_t":
++                strict = False
++
+             # Load the remapped state dict into the model
+             missing_keys, unexpected_keys = model.load_state_dict(remapped_state_dict, strict=strict)
+ 
+@@ -1237,11 +1282,18 @@ class PI05Policy(PreTrainedPolicy):
+ 
+         actions = self.prepare_action(batch)
+ 
+-        noise = self.model.sample_noise(actions.shape, actions.device)
+-        time = self.model.sample_time(actions.shape[0], actions.device)
++        loss_type = getattr(self.config, "loss_type", "flow")
++        if loss_type == "flow":
++            noise = self.model.sample_noise(actions.shape, actions.device)
++            time = self.model.sample_time(actions.shape[0], actions.device)
++        else:
++            # Single-pass point: x_t = 0, u_t = -actions, so the elementwise MSE
++            # below IS the squared residual of the single-pass predictor -v(0, 1).
++            noise = torch.zeros_like(actions)
++            time = torch.ones(actions.shape[0], dtype=torch.float32, device=actions.device)
+ 
+         # Compute loss (no separate state needed for PI05)
+-        losses = self.model.forward(
++        out = self.model.forward(
+             images,
+             img_masks,
+             tokens,
+@@ -1252,6 +1304,12 @@ class PI05Policy(PreTrainedPolicy):
+             states=states,
+             state_masks=state_masks,
+         )
++        s_raw = None; v_t = None
++        if isinstance(out, tuple):
++            losses, s_raw = out[0], out[1]
++            v_t = out[2] if len(out) > 2 else None
++        else:
++            losses = out
+ 
+         # Truncate losses to actual action dimensions
+         original_action_dim = self.config.output_features[ACTION].shape[0]
+@@ -1261,6 +1319,67 @@ class PI05Policy(PreTrainedPolicy):
+             "loss_per_dim": losses.mean(dim=[0, 1]).detach().cpu().numpy().tolist(),
+         }
+ 
++        if loss_type == "hetero_t":
++            # Multivariate Student-t NLL with per-sample scalar scale (fp32),
++            # same form as the GR00T/OFT HT arms.
++            bsz = losses.shape[0]
++            d_norm = losses.shape[1] * losses.shape[2]              # all real action elements (loss denominator)
++            _gbce = bool(getattr(self.config, "ht_gripper_bce", False))
++            if _gbce:
++                # factorized likelihood: Bernoulli on the gripper column, Student-t on the other columns
++                _gdim = int(getattr(self.config, "ht_gripper_dim", 6))
++                _keep = torch.ones(losses.shape[2], dtype=torch.bool, device=losses.device); _keep[_gdim] = False
++                d_eff = losses.shape[1] * int(_keep.sum())
++                sum_r2 = losses.float()[:, :, _keep].sum(dim=(1, 2))
++                _glogit = (-v_t.float())[:, :, _gdim]                   # a_hat = -v(0,1): the readout column is the logit
++                _gtgt = (actions.float()[:, :, _gdim] > 0).float()
++                _gbce_el = F.binary_cross_entropy_with_logits(_glogit, _gtgt, reduction="none")
++                _gbce_per = _gbce_el.sum(dim=1)                          # [B], summed over the chunk steps
++                with torch.no_grad():  # track the normalized class endpoints for the readout (R1-1)
++                    _tg = actions.float()[:, :, _gdim]; _pm = _gtgt > 0.5
++                    if _pm.any() and (~_pm).any():
++                        _new = torch.stack([_tg[~_pm].mean(), _tg[_pm].mean()]).to(self.model.bern_class_vals.dtype)
++                        self.model.bern_class_vals.mul_(0.99).add_(0.01 * _new.to(self.model.bern_class_vals.device))
++                self._ht_gbce_n = getattr(self, "_ht_gbce_n", 0) + 1
++                if self._ht_gbce_n == 1 or self._ht_gbce_n % 500 == 0:
++                    with torch.no_grad():
++                        _acc = ((_glogit > 0).float() == _gtgt).float().mean()
++                    print(f"[pi05-gripper-bce] dim={_gdim} weight={float(getattr(self.config, 'ht_gripper_bce_weight', 1.0))} "
++                          f"bce/elem={float(_gbce_el.mean()):.4f} acc={float(_acc):.3f} pos={float(_gtgt.mean()):.3f} "
++                          f"student-t d_eff={d_eff} (step {self._ht_gbce_n})", flush=True)
++            else:
++                d_eff = d_norm
++                sum_r2 = losses.float().sum(dim=(1, 2))
++            sigma = F.softplus(s_raw.float() + self.config.ht_sbias) + 1e-3
++            df = self.config.ht_df
++            if bool(getattr(self.config, "ht_mvt", False)):
++                # TRUE multivariate Student-t: nu is the df of the d-dim t.
++                # The form below is the same function with nu = df * d_eff, so at
++                # df=2, d_eff=350 the original is a t with nu=700 (near-Gaussian).
++                if not getattr(self, "_mvt_banner", False):
++                    self._mvt_banner = True
++                    print(f"[pi05-mvt] multivariate Student-t, nu={df}, d_eff={d_eff}", flush=True)
++                per_sample = (
++                    0.5 * (df + d_eff) * torch.log1p(sum_r2 / (df * sigma**2))
++                    + d_eff * torch.log(sigma)
++                )
++            else:
++                per_sample = (
++                    0.5 * (df + 1.0) * torch.log1p(sum_r2 / (df * sigma**2 * d_eff)) * d_eff
++                    + d_eff * torch.log(sigma)
++                )
++            if _gbce:
++                per_sample = per_sample + float(getattr(self.config, "ht_gripper_bce_weight", 1.0)) * _gbce_per
++            loss_dict["sigma_mean"] = sigma.mean().item()
++            loss_dict["residual_msr"] = (sum_r2 / d_eff).mean().item()
++            if reduction == "none":
++                per_sample_loss = per_sample / d_norm
++                loss_dict["loss"] = per_sample_loss.mean().item()
++                return per_sample_loss, loss_dict
++            loss = per_sample.sum() / (bsz * d_norm)
++            loss_dict["loss"] = loss.item()
++            return loss, loss_dict
++
+         if reduction == "none":
+             # Return per-sample losses (B,) by averaging over time and action dims
+             per_sample_loss = losses.mean(dim=(1, 2))

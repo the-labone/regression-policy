@@ -1,0 +1,23 @@
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -79,9 +79,9 @@
+ include = ["gr00t*"]
+ 
+ [tool.uv]
++environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
+ required-environments = [
+     "sys_platform == 'linux' and platform_machine == 'x86_64'",
+-    "sys_platform == 'linux' and platform_machine == 'aarch64'",
+ ]
+ 
+ [tool.uv.sources]
+@@ -97,9 +97,6 @@
+ flash-attn = [
+     { url = "https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.9cxx11abiTRUE-cp312-cp312-linux_x86_64.whl", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+     { url = "https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.9cxx11abiTRUE-cp312-cp312-linux_aarch64.whl", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
+-]
+-torchcodec = [
+-    { path = "scripts/deployment/dgpu/wheels/torchcodec-0.8.0-cp312-cp312-linux_aarch64.whl", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
+ ]
+ tensorrt-cu12-libs = [
+     { index = "nvidia-pypi", marker = "platform_machine == 'x86_64'" },

@@ -1,0 +1,40 @@
+# @package _global_
+defaults:
+- /experiment/robomimic/_base/state/ht_transformer
+- _self_
+name: lift_mh_abs_ht_transformer_minmax_nu200
+seed: 41
+dataset:
+  normalization: minmax
+  obs_keys: null
+  seed: 42
+  val_ratio: 0.02
+  source_action_space: abs
+training:
+  device: cuda:0
+  allow_tf32: true
+  compile:
+    enabled: true
+  evaluation_seed: ${seed}
+  trainer:
+    max_steps: 952000
+    log_every: 1
+    validate_every: 119
+    eval_every: 5950
+    checkpoint_every: 5950
+evaluation:
+  n_train: 6
+  n_test: 50
+  train_start_idx: 0
+  max_steps: 500
+  n_envs: 28
+  n_train_vis: 2
+  n_test_vis: 4
+  render_hw:
+  - 128
+  - 128
+  fps: 10
+  crf: 22
+  test_start_seed: 4200000
+  num_workers: 8
+  source_robosuite_version: 1.2.0

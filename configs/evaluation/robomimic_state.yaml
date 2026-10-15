@@ -1,0 +1,12 @@
+_target_: ht_regression.evaluation.robomimic.RobomimicStateRunner
+# All 50 test episodes count; this is not the historical first-22 aggregation.
+n_train: 0
+n_test: 50
+test_start_seed: 4200000
+max_steps: 700
+n_envs: 10
+num_workers: 0
+n_train_vis: 0
+n_test_vis: 0
+save_traces: false
+source_robosuite_version: null

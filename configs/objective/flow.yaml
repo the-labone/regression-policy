@@ -1,0 +1,10 @@
+# @package _global_
+objective:
+  _target_: ht_regression.objectives.generation.flow.FlowObjective
+  num_inference_steps: 9
+  sample_mode: zero  # Use stochastic to initialize inference from Gaussian noise.
+  norm_type: l2
+  loss_scale: 0.1  # Sum over features, mean over batch and horizon.
+  validate_values: false
+
+initialization: null

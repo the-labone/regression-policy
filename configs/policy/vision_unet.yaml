@@ -1,0 +1,9 @@
+defaults:
+  - state_unet
+  - _self_
+obs_encoder:
+  _target_: ht_regression.policies.from_scratch.encoders.MultiImageEncoder
+  feature_dim: 64
+  num_keypoints: 32
+  crop_shape: [76, 76]
+  weight_decay: 1.0e-6

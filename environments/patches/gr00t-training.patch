@@ -1,0 +1,58 @@
+--- a/gr00t/configs/model/gr00t_n1d7.py
++++ b/gr00t/configs/model/gr00t_n1d7.py
+@@ -117,6 +117,7 @@
+     loss_type: str = "flow"
+     ht_sbias: float = 3.0  # added to sigma decoder output before softplus
+     ht_df: float = 2.0  # Student-t degrees of freedom
++    ht_mvt: bool = False  # True: ht_df is literal joint nu.
+ 
+     # Training parameters
+     tune_projector: bool = True
+--- a/gr00t/model/gr00t_n1d7/setup.py
++++ b/gr00t/model/gr00t_n1d7/setup.py
+@@ -92,6 +92,7 @@
+                 loss_type=self.config.model.loss_type,
+                 ht_sbias=self.config.model.ht_sbias,
+                 ht_df=self.config.model.ht_df,
++                ht_mvt=self.config.model.ht_mvt,
+                 transformers_loading_kwargs=self.transformers_loading_kwargs,
+                 output_loading_info=True,
+                 **self.transformers_loading_kwargs,
+--- a/gr00t/model/gr00t_n1d7/gr00t_n1d7.py
++++ b/gr00t/model/gr00t_n1d7/gr00t_n1d7.py
+@@ -298,26 +298,15 @@
+         # Slice out only the action portion of pred and target.
+         action_mask = action_input.action_mask
+         if self.config.loss_type == "hetero_t":
+-            # Heteroscedastic Student-t NLL, matching the MIP-harness
+-            # regression_hetero_t estimator exactly: a PER-SAMPLE scalar sigma
+-            # (masked mean of softplus over the chunk) and a multivariate-t NLL
+-            # over the whole-chunk residual, normalized per masked dim.
+-            # Computed in fp32: the NLL's log/divide chain is less bf16-tolerant
+-            # than the flow branch's plain MSE.
+-            s_raw = self.sigma_decoder(model_output, embodiment_id)[:, -actions.shape[1] :]
+-            mask = action_mask.float()
+-            d_eff = mask.sum(dim=tuple(range(1, mask.dim()))).clamp_min(1.0)  # [B]
+-            sp = F.softplus(s_raw.float() + self.config.ht_sbias) * mask
+-            sigma = sp.sum(dim=tuple(range(1, sp.dim()))) / d_eff + 1e-3  # [B]
+-            df = self.config.ht_df
+-            r2 = ((actions.float() - pred_actions.float()) ** 2) * mask
+-            sum_r2 = r2.sum(dim=tuple(range(1, r2.dim())))  # [B]
+-            per_sample = (
+-                0.5 * (df + 1.0) * torch.log1p(sum_r2 / (df * sigma**2 * d_eff)) * d_eff
+-                + d_eff * torch.log(sigma)
+-            )
+-            action_loss = per_sample  # [B]; per-sample NLL, for logging only
+-            loss = per_sample.sum() / (mask.sum() + 1e-6)
++            from ht_regression.objectives.regression.HT.native import gr00t_loss
++
++            raw_sigma = self.sigma_decoder(model_output, embodiment_id)[:, -actions.shape[1] :]
++            result = gr00t_loss(
++                pred_actions, actions, raw_sigma, action_mask,
++                df=self.config.ht_df, multivariate=self.config.ht_mvt,
++                scale_bias=self.config.ht_sbias,
++            )
++            action_loss, loss = result["action_loss"], result["loss"]
+         elif self.config.loss_type == "mse":
+             # Homoscedastic single-pass regression baseline: identical readout
+             # path to hetero_t (zeros, t=0), plain masked MSE on the action.

@@ -1,0 +1,50 @@
+# @package _global_
+defaults:
+- /experiment/robomimic/_base/state/ht_transformer
+- _self_
+name: tool_hang_ph_abs_ht_transformer_minmax_nu2d
+seed: 41
+dataset:
+  source_action_space: abs
+  path: ???
+  obs_keys:
+  - object
+  - robot0_eef_pos
+  - robot0_eef_quat
+  - robot0_gripper_qpos
+  seed: 42
+  val_ratio: 0.02
+  filter_key: null
+  normalization: minmax
+policy:
+  model:
+    obs_dim: 53
+    action_dim: 10
+training:
+  device: cuda:0
+  allow_tf32: true
+  compile:
+    enabled: true
+  evaluation_seed: ${seed}
+  trainer:
+    max_steps: 2928000
+    log_every: 1
+    validate_every: 366
+    eval_every: 18300
+    checkpoint_every: 18300
+evaluation:
+  source_robosuite_version: 1.2.0
+  n_train: 6
+  n_test: 50
+  train_start_idx: 0
+  max_steps: 700
+  n_envs: 28
+  n_train_vis: 2
+  n_test_vis: 4
+  render_hw:
+  - 128
+  - 128
+  fps: 10
+  crf: 22
+  test_start_seed: 4200000
+  num_workers: 8

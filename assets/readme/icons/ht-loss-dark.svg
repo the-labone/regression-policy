@@ -1,0 +1,17 @@
+<!-- Lucide: square-function, revision a04f228cd01185e09c188b7227b9600c08c565ec. See LICENSE.lucide. -->
+<!-- Four pixels of bottom padding align the drawing with heading capitals when the image uses absmiddle. -->
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="28"
+  viewBox="0 0 24 28"
+  fill="none"
+  stroke="#a0b4f2"
+  stroke-width="1.75"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+  <path d="M9 17c2 0 2.8-1 2.8-2.8V10c0-2 1-3.3 3.2-3" />
+  <path d="M9 11.2h5.7" />
+</svg>

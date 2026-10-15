@@ -1,0 +1,8 @@
+defaults:
+  - robomimic_state
+  - _self_
+_target_: ht_regression.evaluation.robomimic.RobomimicImageRunner
+# Rendering is required for every rollout, independently of saved videos.
+n_envs: 4
+num_workers: 2
+render_camera_name: agentview

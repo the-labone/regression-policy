@@ -1,0 +1,13 @@
+_target_: ht_regression.policies.from_scratch.action_chunk_policy.ActionChunkPolicy
+n_action_steps: 8
+action_start_index: null
+validate_values: false  # Trainer checks loss/gradients; enable for input debugging.
+model:
+  _target_: ht_regression.policies.from_scratch.backbones.UNetBackbone
+  horizon: 16
+  n_obs_steps: 2
+  diffusion_step_embed_dim: 256
+  down_dims: [256, 512, 1024]
+  kernel_size: 5
+  n_groups: 8
+  cond_predict_scale: true

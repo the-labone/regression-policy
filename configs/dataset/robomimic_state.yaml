@@ -1,0 +1,13 @@
+_target_: ht_regression.data.robomimic.RobomimicStateDataset
+path: ???
+action_space: abs
+# For unmarked legacy files, supply the verified source space explicitly.
+source_action_space: null
+horizon: ${policy.model.horizon}
+n_obs_steps: ${policy.model.n_obs_steps}
+n_action_steps: ${policy.n_action_steps}
+obs_keys: null
+val_ratio: 0.02
+seed: 42
+filter_key: null
+normalization: dp

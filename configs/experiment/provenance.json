@@ -1,0 +1,195 @@
+{
+  "gr1": {
+    "source": "analysis/paper/experiment_settings_20260920/snapshot/groot/ft_gr1c2/experiment_cfg/config.yaml",
+    "sha256": "1b5018761d89952bc32a9b17bded088effbbc55baed5f389e540b9fd2cf404ef",
+    "removed_inactive_fields": {
+      "model": {
+        "ht_beta": 0.0,
+        "ht_shrink": false,
+        "ht_nu_target": 0.0,
+        "ht_nu_start": 0.0,
+        "ht_sigma_pretrain": 0,
+        "ht_hg_steps": 0,
+        "ht_mse_steps": 0,
+        "ht_sum_mode": "inside",
+        "ht_sigma_mode": "homog",
+        "ht_sbias_vec": [],
+        "ht_nu_anneal_end_frac": 1.0,
+        "ht_nu_max": 50.0,
+        "ht_nu_ema": 0.99,
+        "ht_shrink_ema": 0.99,
+        "ht_beta_hold_frac": 0.15,
+        "ht_beta_end_frac": 0.0,
+        "reinit_action_head": false
+      },
+      "data": {},
+      "training": {}
+    },
+    "sigma_lr_multiplier": 1.0,
+    "effective_architecture": {
+      "reason": "Native setup loads architecture from the base checkpoint; experiment defaults were not forwarded. Processor settings still come from the experiment config.",
+      "experiment_defaults": {
+        "select_layer": 12,
+        "diffusion_model_cfg": {
+          "positional_embeddings": null,
+          "num_layers": 16,
+          "num_attention_heads": 32,
+          "attention_head_dim": 48,
+          "norm_type": "ada_norm",
+          "dropout": 0.2,
+          "final_dropout": true,
+          "output_dim": 1024,
+          "interleave_self_attention": true
+        }
+      },
+      "checkpoint_values": {
+        "select_layer": 16,
+        "diffusion_model_cfg": {
+          "attention_head_dim": 48,
+          "dropout": 0.2,
+          "final_dropout": true,
+          "interleave_self_attention": true,
+          "norm_type": "ada_norm",
+          "num_attention_heads": 32,
+          "num_layers": 32,
+          "output_dim": 1024,
+          "positional_embeddings": null
+        }
+      },
+      "checkpoint_config_sha256": "682555c4c1416ebcfa48c1ec2cf7039463e4d66e10be218efd69f29c06ba745f"
+    }
+  },
+  "bridge": {
+    "source": "analysis/paper/experiment_settings_20260920/snapshot/groot/ft_wxnu224/experiment_cfg/config.yaml",
+    "sha256": "306a98d1bea18cc5bb31b0c6b70d010467f3f9447163b3c7eeeb3fc4552cb400",
+    "removed_inactive_fields": {
+      "model": {
+        "ht_beta": 0.0,
+        "ht_shrink": false,
+        "ht_nu_target": 0.0,
+        "ht_nu_start": 0.0,
+        "ht_sigma_pretrain": 0,
+        "ht_hg_steps": 0,
+        "ht_mse_steps": 0,
+        "ht_sum_mode": "inside",
+        "ht_sigma_mode": "homog",
+        "ht_sbias_vec": [],
+        "ht_nu_anneal_end_frac": 1.0,
+        "ht_nu_max": 50.0,
+        "ht_nu_ema": 0.99,
+        "ht_shrink_ema": 0.99,
+        "ht_beta_hold_frac": 0.15,
+        "ht_beta_end_frac": 0.0,
+        "reinit_action_head": false
+      },
+      "data": {},
+      "training": {}
+    },
+    "sigma_lr_multiplier": 1.0,
+    "effective_architecture": {
+      "reason": "Native setup loads architecture from the base checkpoint; experiment defaults were not forwarded. Processor settings still come from the experiment config.",
+      "experiment_defaults": {
+        "select_layer": 12,
+        "diffusion_model_cfg": {
+          "positional_embeddings": null,
+          "num_layers": 16,
+          "num_attention_heads": 32,
+          "attention_head_dim": 48,
+          "norm_type": "ada_norm",
+          "dropout": 0.2,
+          "final_dropout": true,
+          "output_dim": 1024,
+          "interleave_self_attention": true
+        }
+      },
+      "checkpoint_values": {
+        "select_layer": 16,
+        "diffusion_model_cfg": {
+          "attention_head_dim": 48,
+          "dropout": 0.2,
+          "final_dropout": true,
+          "interleave_self_attention": true,
+          "norm_type": "ada_norm",
+          "num_attention_heads": 32,
+          "num_layers": 32,
+          "output_dim": 1024,
+          "positional_embeddings": null
+        }
+      },
+      "checkpoint_config_sha256": "b078f9622ed8e7f685a814d3f9f3045c26cf21c38a8cf14e99d0cf84326864b7"
+    }
+  },
+  "fractal": {
+    "source": "analysis/paper/experiment_settings_20260920/snapshot/groot/ft_fr_nu224_siglr15_20260910_r2/experiment_cfg/config.yaml",
+    "sha256": "189b1852cb0ce2d349d9e802a6fa396b102682e07767a8dfa4b34243db8b435f",
+    "removed_inactive_fields": {
+      "model": {
+        "ht_beta": 0.0,
+        "ht_shrink": false,
+        "ht_nu_target": 0.0,
+        "ht_nu_start": 0.0,
+        "ht_sigma_pretrain": 0,
+        "ht_hg_steps": 0,
+        "ht_mse_steps": 0,
+        "ht_sum_mode": "inside",
+        "ht_sigma_mode": "homog",
+        "ht_sbias_vec": [],
+        "ht_cov_mode": "iso",
+        "ht_gripper_bce": false,
+        "ht_gripper_dim": 6,
+        "ht_gripper_groups": "",
+        "ht_gripper_bce_weight": 1.0,
+        "ht_sigma_clamp": -1.0,
+        "ht_gate_floor": 0.0,
+        "ht_nu_anneal_end_frac": 1.0,
+        "ht_nu_max": 50.0,
+        "ht_nu_ema": 0.99,
+        "ht_shrink_ema": 0.99,
+        "ht_beta_hold_frac": 0.15,
+        "ht_beta_end_frac": 0.0,
+        "reinit_action_head": false
+      },
+      "data": {},
+      "training": {}
+    },
+    "sigma_lr_multiplier": 1.5,
+    "effective_architecture": {
+      "reason": "Native setup loads architecture from the base checkpoint; experiment defaults were not forwarded. Processor settings still come from the experiment config.",
+      "experiment_defaults": {
+        "select_layer": 12,
+        "diffusion_model_cfg": {
+          "positional_embeddings": null,
+          "num_layers": 16,
+          "num_attention_heads": 32,
+          "attention_head_dim": 48,
+          "norm_type": "ada_norm",
+          "dropout": 0.2,
+          "final_dropout": true,
+          "output_dim": 1024,
+          "interleave_self_attention": true
+        }
+      },
+      "checkpoint_values": {
+        "select_layer": 16,
+        "diffusion_model_cfg": {
+          "attention_head_dim": 48,
+          "dropout": 0.2,
+          "final_dropout": true,
+          "interleave_self_attention": true,
+          "norm_type": "ada_norm",
+          "num_attention_heads": 32,
+          "num_layers": 32,
+          "output_dim": 1024,
+          "positional_embeddings": null
+        }
+      },
+      "checkpoint_config_sha256": "fe4b0d78564cec78bcd0becb4894991b1ab050e924d7671c16d131270791abf7"
+    }
+  },
+  "pi05": {
+    "source": "pi05/run_ht/checkpoints/030000/pretrained_model/train_config.json",
+    "sha256": "efac1377f63b9bf1c9eae428adec6b7b789a12a9d6dc8f66b445a64210a61a32",
+    "encoded_df": 2,
+    "effective_nu": 700
+  }
+}

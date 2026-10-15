@@ -1,0 +1,10 @@
+{
+  "base_url": "https://archive.ubuntu.com/ubuntu/",
+  "packages": {
+    "pool/main/m/mesa/libosmesa6_23.2.1-1ubuntu3.1~22.04.4_amd64.deb": "d961bee304d032b7a3f626239366bbe36c4481adb5699813389cdbd08d682269",
+    "pool/main/m/mesa/libosmesa6-dev_23.2.1-1ubuntu3.1~22.04.4_amd64.deb": "99bad55b72d13c2045a00202a91d94c48e642a3f945dbbae5ede8dac6cb38801",
+    "pool/universe/g/glfw3/libglfw3_3.3.6-1_amd64.deb": "a7fe08d4ded1c376e8b008fdeef220b8a0335258a05c542982424cdb43b61af3",
+    "pool/main/libg/libglvnd/libgl-dev_1.4.0-1_amd64.deb": "6cda0891ca38204ab3a9a2a9279ecb99989ab100d6e48101306efce28f0759a2",
+    "pool/main/libg/libglvnd/libgl1_1.4.0-1_amd64.deb": "4fb2bbff94bb1a59bbdb40041e7a8ab58db2a003a151f4055357af03f0b78666"
+  }
+}

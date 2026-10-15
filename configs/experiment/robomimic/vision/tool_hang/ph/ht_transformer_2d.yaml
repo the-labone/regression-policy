@@ -1,0 +1,55 @@
+# @package _global_
+defaults:
+- /experiment/robomimic/_base/vision/ht_transformer
+- _self_
+name: tool_hang_ph_visual_ht_transformer_2d_b256_300k_s41
+dataloader:
+  train:
+    batch_size: 256
+    num_workers: 4
+    persistent_workers: true
+  validation:
+    num_workers: 2
+    persistent_workers: true
+    prefetch_factor: 2
+seed: 41
+dataset:
+  camera_keys:
+  - sideview_image
+  - robot0_eye_in_hand_image
+  source_action_space: abs
+  normalization: minmax
+policy:
+  obs_encoder:
+    crop_shape:
+    - 216
+    - 216
+evaluation:
+  render_camera_name: sideview
+  test_start_seed: 100000
+  source_robosuite_version: 1.2.0
+  n_train: 6
+  n_test: 50
+  n_envs: 28
+  num_workers: 8
+  n_train_vis: 2
+  n_test_vis: 4
+  render_hw:
+  - 240
+  - 240
+objective:
+  nu: 200  # 2d: horizon 10 x action dimension 10.
+training:
+  device: cuda:0
+  allow_tf32: true
+  evaluation_seed: ${seed}
+  compile:
+    enabled: false
+  scheduler:
+    total_steps: 300000
+  trainer:
+    max_steps: 300000
+    log_every: 10
+    validate_every: 366
+    eval_every: 30000
+    checkpoint_every: 30000

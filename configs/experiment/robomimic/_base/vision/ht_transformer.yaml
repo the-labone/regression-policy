@@ -1,0 +1,16 @@
+# @package _global_
+defaults:
+- override /dataset: robomimic_vision
+- override /policy: vision_transformer
+- override /objective: ht
+- override /training: robomimic/transformer
+- override /evaluation: robomimic_vision
+- _self_
+name: robomimic_visual_ht_transformer
+dataloader:
+  train:
+    batch_size: 64
+  validation:
+    batch_size: 64
+policy:
+  _target_: ht_regression.policies.from_scratch.action_chunk_policy.ActionChunkPolicyWithScale

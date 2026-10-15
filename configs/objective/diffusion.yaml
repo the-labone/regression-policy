@@ -1,0 +1,16 @@
+# @package _global_
+objective:
+  _target_: ht_regression.objectives.generation.diffusion.DiffusionObjective
+  num_inference_steps: 100
+  validate_values: false
+  noise_scheduler:
+    _target_: diffusers.DDPMScheduler
+    num_train_timesteps: 100
+    beta_start: 0.0001
+    beta_end: 0.02
+    beta_schedule: squaredcos_cap_v2
+    variance_type: fixed_small
+    clip_sample: true
+    prediction_type: epsilon
+
+initialization: null

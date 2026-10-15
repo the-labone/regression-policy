@@ -1,0 +1,54 @@
+# @package _global_
+defaults:
+- /experiment/robomimic/_base/vision/ht_unet
+- _self_
+name: can_ph_visual_ht_unet_2d_b256_300k_s41
+dataloader:
+  train:
+    batch_size: 256
+    num_workers: 4
+    persistent_workers: true
+  validation:
+    num_workers: 2
+    persistent_workers: true
+seed: 41
+dataset:
+  source_action_space: abs
+  normalization: minmax
+policy:
+  model:
+    down_dims:
+    - 512
+    - 1024
+    - 2048
+    diffusion_step_embed_dim: 128
+  action_start_index: 1
+objective:
+  nu: 320  # 2d: horizon 16 x action dimension 10.
+training:
+  device: cuda:0
+  allow_tf32: true
+  evaluation_seed: ${seed}
+  compile:
+    enabled: false
+  scheduler:
+    total_steps: 300000
+  trainer:
+    max_steps: 300000
+    validate_every: 84
+    eval_every: 30000
+    checkpoint_every: 30000
+    log_every: 10
+evaluation:
+  source_robosuite_version: 1.2.0
+  render_hw:
+  - 84
+  - 84
+  n_train: 6
+  n_test: 50
+  n_envs: 28
+  num_workers: 8
+  n_train_vis: 2
+  n_test_vis: 4
+  test_start_seed: 100000
+  max_steps: 400

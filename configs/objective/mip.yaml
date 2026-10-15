@@ -1,0 +1,9 @@
+# @package _global_
+objective:
+  _target_: ht_regression.objectives.generation.mip.MIPObjective
+  t_two_step: 0.9
+  norm_type: l2
+  loss_scale: 0.1
+  validate_values: false
+
+initialization: null

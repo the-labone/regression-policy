@@ -1,0 +1,17 @@
+__pycache__/
+__MACOSX/
+tests/*
+!tests/test_vla_training.py
+/videos/
+*.py[cod]
+.ruff_cache/
+*.egg-info/
+.venv/
+.deps/
+.environments/
+build/
+dist/
+evaluation_results/
+outputs/
+/data/
+/checkpoints/

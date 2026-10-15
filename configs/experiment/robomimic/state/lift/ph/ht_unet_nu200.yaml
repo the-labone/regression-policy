@@ -1,0 +1,43 @@
+# @package _global_
+defaults:
+- /experiment/robomimic/_base/state/ht_unet
+- _self_
+name: lift_ph_state_ht_c_nu200_s41
+seed: 41
+dataset:
+  source_action_space: abs
+  normalization: minmax
+  obs_keys:
+  - object
+  - robot0_eef_pos
+  - robot0_eef_quat
+  - robot0_gripper_qpos
+training:
+  device: cuda:0
+  allow_tf32: true
+  evaluation_seed: ${seed}
+  compile:
+    enabled: true
+  trainer:
+    max_steps: 160000
+    validate_every: 32
+    eval_every: 1600
+    checkpoint_every: 1600
+    log_every: 10
+evaluation:
+  n_train: 6
+  n_test: 50
+  train_start_idx: 0
+  max_steps: 400
+  n_envs: 28
+  n_train_vis: 2
+  n_test_vis: 3
+  render_hw:
+  - 128
+  - 128
+  fps: 10
+  crf: 22
+  source_robosuite_version: 1.2.0
+  num_workers: 8
+policy:
+  action_start_index: 1

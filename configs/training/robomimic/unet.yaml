@@ -1,0 +1,57 @@
+# @package _global_
+defaults:
+- /training/schema@training
+- _self_
+training:
+  device: cuda
+  evaluation_seed: 0
+  optimizer:
+    lr: 0.0001
+    betas:
+    - 0.95
+    - 0.999
+    weight_decay: 1.0e-06
+  scheduler:
+    name: cosine
+    warmup_steps: 500
+  trainer:
+    max_steps: 100000
+    gradient_accumulation_steps: 1
+    precision: fp32
+    log_every: 100
+    validate_every: 1000
+    eval_every: 5000
+    checkpoint_every: 5000
+    ema:
+      enabled: true
+      schedule: power
+      decay: 0.9999
+      power: 0.75
+  metrics:
+    monitor_key: test/mean_score
+    mode: max
+    protocols:
+    - robomimic/common
+    - robomimic/diffusion_policy
+  compile:
+    enabled: false
+    mode: reduce-overhead
+  logging:
+    tensorboard: true
+    flush_secs: 30
+    max_queue: 100
+dataloader:
+  train:
+    batch_size: 256
+    num_workers: 1
+    pin_memory: true
+    persistent_workers: true
+    prefetch_factor: 2
+    drop_last: false
+  validation:
+    batch_size: 256
+    num_workers: 1
+    pin_memory: true
+    persistent_workers: true
+    prefetch_factor: 2
+    drop_last: false

@@ -1,0 +1,53 @@
+# @package _global_
+defaults:
+- /experiment/robomimic/_base/vision/ht_unet
+- _self_
+name: lift_mh_visual_ht_unet_2d_500ep_s41
+dataloader:
+  train:
+    num_workers: 4
+    persistent_workers: true
+  validation:
+    num_workers: 2
+    persistent_workers: true
+seed: 41
+dataset:
+  source_action_space: abs
+  normalization: minmax
+policy:
+  model:
+    down_dims:
+    - 512
+    - 1024
+    - 2048
+    diffusion_step_embed_dim: 128
+  action_start_index: 1
+objective:
+  nu: 320  # 2d: horizon 16 x action dimension 10.
+training:
+  device: cuda:0
+  allow_tf32: true
+  evaluation_seed: ${seed}
+  compile:
+    enabled: false
+  scheduler:
+    total_steps: 300000  # Preserve the original 8000-epoch cosine schedule.
+  trainer:
+    max_steps: 300000  # Stop at 500 epochs.
+    validate_every: 447
+    eval_every: 30000
+    checkpoint_every: 30000
+    log_every: 10
+evaluation:
+  source_robosuite_version: 1.2.0
+  render_hw:
+  - 84
+  - 84
+  n_train: 6
+  n_test: 50
+  n_envs: null
+  num_workers: 8
+  n_train_vis: 2
+  n_test_vis: 4
+  test_start_seed: 100000
+  max_steps: 500

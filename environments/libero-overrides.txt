@@ -1,0 +1,5 @@
+# Match the native Cosmos LIBERO evaluation environment.
+numpy==1.26.4
+robosuite==1.4.1
+mujoco==2.3.7
+protobuf==3.20.3

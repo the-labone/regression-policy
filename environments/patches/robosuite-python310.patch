@@ -1,0 +1,28 @@
+--- a/robosuite/models/arenas/multi_table_arena.py
++++ b/robosuite/models/arenas/multi_table_arena.py
+@@ -3,7 +3,7 @@
+ from robosuite.utils.mjcf_utils import xml_path_completion, array_to_string, string_to_array, \
+     new_geom, new_body, new_site
+ import robosuite.utils.transform_utils as T
+-from collections import Iterable
++from collections.abc import Iterable
+ 
+ 
+ class MultiTableArena(Arena):
+--- a/robosuite/utils/placement_samplers.py
++++ b/robosuite/utils/placement_samplers.py
+@@ -1,4 +1,4 @@
+-import collections
++import collections.abc
+ import numpy as np
+ 
+ from copy import copy
+@@ -194,7 +194,7 @@
+         """
+         if self.rotation is None:
+             rot_angle = np.random.uniform(high=2 * np.pi, low=0)
+-        elif isinstance(self.rotation, collections.Iterable):
++        elif isinstance(self.rotation, collections.abc.Iterable):
+             rot_angle = np.random.uniform(
+                 high=max(self.rotation), low=min(self.rotation)
+             )

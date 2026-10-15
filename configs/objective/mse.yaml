@@ -1,0 +1,7 @@
+# @package _global_
+objective:
+  _target_: ht_regression.objectives.regression.MSE.MSEObjective
+  loss_scale: 1.0
+  validate_values: false
+
+initialization: null

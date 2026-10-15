@@ -1,0 +1,14 @@
+# @package _global_
+objective:
+  # Fixed multivariate Student-t degrees of freedom.
+  _target_: ht_regression.objectives.regression.HT.HTObjective
+  nu: 200
+  scale_bias: 0.0  # Set by training-data calibration before optimization.
+  min_scale: 0.001
+  validate_values: false
+
+initialization:
+  _target_: ht_regression.objectives.regression.HT.calibration.calibrate_sigma
+  num_samples: 300
+  batch_size: 64
+  seed: ${seed}

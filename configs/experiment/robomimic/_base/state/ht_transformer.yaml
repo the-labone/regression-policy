@@ -1,0 +1,11 @@
+# @package _global_
+defaults:
+- override /policy: state_transformer
+- override /objective: ht
+- override /training: robomimic/transformer
+- override /dataset: robomimic_state
+- override /evaluation: robomimic_state
+- _self_
+name: robomimic_ht_transformer
+policy:
+  _target_: ht_regression.policies.from_scratch.action_chunk_policy.ActionChunkPolicyWithScale

@@ -1,0 +1,55 @@
+--- a/src/lerobot/policies/pi05/modeling_pi05.py
++++ b/src/lerobot/policies/pi05/modeling_pi05.py
+@@ -906,9 +906,7 @@
+                 original_state_dict = load_file(resolved_file)
+                 print("✓ Loaded state dict from model.safetensors")
+             except Exception as e:
+-                print(f"Could not load state dict from remote files: {e}")
+-                print("Returning model without loading pretrained weights")
+-                return model
++                raise RuntimeError("Cannot read PI0.5 pretrained weights") from e
+ 
+             # First, fix any key differences (see openpi model.py, _fix_pytorch_state_dict_keys)
+             fixed_state_dict = model._fix_pytorch_state_dict_keys(original_state_dict, model.config)
+@@ -937,6 +935,12 @@
+ 
+             # Load the remapped state dict into the model
+             missing_keys, unexpected_keys = model.load_state_dict(remapped_state_dict, strict=strict)
++            invalid_missing = [key for key in missing_keys if key not in (
++                "model.sigma_out_proj.weight", "model.sigma_out_proj.bias"
++            )]
++            if invalid_missing or unexpected_keys:
++                raise RuntimeError(f"Incompatible pretrained weights: {invalid_missing=}, {unexpected_keys=}")
++
+ 
+             if missing_keys:
+                 print(f"Missing keys when loading state dict: {len(missing_keys)} keys")
+@@ -962,7 +966,7 @@
+                 print("All keys loaded successfully!")
+ 
+         except Exception as e:
+-            print(f"Warning: Could not load state dict: {e}")
++            raise RuntimeError("PI0.5 pretrained weight loading failed") from e
+ 
+         return model
+ 
+@@ -1359,15 +1363,11 @@
+                 if not getattr(self, "_mvt_banner", False):
+                     self._mvt_banner = True
+                     print(f"[pi05-mvt] multivariate Student-t, nu={df}, d_eff={d_eff}", flush=True)
+-                per_sample = (
+-                    0.5 * (df + d_eff) * torch.log1p(sum_r2 / (df * sigma**2))
+-                    + d_eff * torch.log(sigma)
+-                )
++                from ht_regression.objectives.regression.HT.native import chunk_nll
++                per_sample = chunk_nll(sum_r2, sigma, d_eff, df)
+             else:
+-                per_sample = (
+-                    0.5 * (df + 1.0) * torch.log1p(sum_r2 / (df * sigma**2 * d_eff)) * d_eff
+-                    + d_eff * torch.log(sigma)
+-                )
++                from ht_regression.objectives.regression.HT.native import scaled_df_nll
++                per_sample = scaled_df_nll(sum_r2, sigma, d_eff, df)
+             if _gbce:
+                 per_sample = per_sample + float(getattr(self.config, "ht_gripper_bce_weight", 1.0)) * _gbce_per
+             loss_dict["sigma_mean"] = sigma.mean().item()

@@ -1,0 +1,330 @@
+--- a/cosmos_framework/inference/common/inference.py
++++ b/cosmos_framework/inference/common/inference.py
+@@ -132,7 +132,13 @@
+     def create(cls, setup_args: SetupArgs, /) -> Self:
+         """Create instance."""
+         timer = TrainingTimer() if setup_args.benchmark else None
+-        guardrails = GuardrailRunners.create(setup_args) if setup_args.guardrails else None
++        import os as _os
++        _skip = _os.environ.get("COSMOS_SKIP_GUARDRAIL") == "1"
++        guardrails = (
++            GuardrailRunners.create(setup_args)
++            if (setup_args.guardrails and not _skip)
++            else None
++        )
+         return cls._create(setup_args, guardrails=guardrails, _timer=timer)
+ 
+     @torch.no_grad()
+--- a/cosmos_framework/model/generator/omni_mot_model.py
++++ b/cosmos_framework/model/generator/omni_mot_model.py
+@@ -13,6 +13,7 @@
+ from typing import Any, Callable, Dict, Mapping, Optional, Tuple
+ 
+ import numpy as np
++import os
+ import torch
+ import torch.distributed as dist
+ from einops import rearrange
+@@ -527,6 +528,53 @@
+                 dtype=self.tensor_kwargs_fp32["dtype"],
+             )
+         if self.config.action_gen:
++            # --- HT single-pass action head (env-gated; see ht_patch_cosmos3.py) ---
++            self._ht_action = bool(int(os.environ.get("HT_ACTION", "0")))
++            self._ht_sbias = float(os.environ.get("HT_SBIAS", "0.0"))
++            self._ht_df = float(os.environ.get("HT_DF", "2.0"))
++            # HG-pretrain: run the nu->inf (heteroscedastic-Gaussian) limit for the
++            # first HT_HG_STEPS iters, then switch to Student-t. sigma carries over
++            # directly -- both objectives share the optimum sigma^2 = m.
++            self._ht_hg_steps = int(os.environ.get("HT_HG_STEPS", "0"))
++            # true multivariate-t: 0.5(nu+d)*log1p(S/(nu*sigma^2)); nu = HT_DF literally
++            self._ht_mvt = bool(int(os.environ.get("HT_MVT", "0")))
++            # HT_MSE=1: plain MSE on the same single-pass de-tiled action residual (control arm; sigma head unused)
++            self._ht_mse = bool(int(os.environ.get("HT_MSE", "0")))
++            self._ht_learn_nu = bool(int(os.environ.get("HT_LEARN_NU", "0")))
++            self._ht_nu_rms = bool(int(os.environ.get("HT_NU_RMS", "0")))   # median-pinned gate
++            self._ht_nu_c = float(os.environ.get("HT_NU_C", "2.5"))
++            # beta-NLL: stop_grad(sigma^{2*beta}) on the per-sample NLL. beta=1
++            # cancels the 1/sigma^2 damping of the mu gradient (what a fresh head
++            # needs); held to convergence it also cancels the across-state
++            # heteroscedastic weighting, so it is annealed to 0 over training.
++            self._ht_beta = float(os.environ.get("HT_BETA", "0.0"))
++            self._ht_beta_hold_frac = float(os.environ.get("HT_BETA_HOLD_FRAC", "0.15"))
++            self._ht_beta_end_frac = float(os.environ.get("HT_BETA_END_FRAC", "0.0"))
++            self._ht_max_iter = int(os.environ.get("HT_MAX_ITER", "0"))
++            # nu annealing HG -> HT (see patch_nuanneal.py). 0 disables.
++            self._ht_nu_start = float(os.environ.get("HT_NU_START", "0.0"))
++            self._ht_nu_end_frac = float(os.environ.get("HT_NU_ANNEAL_END_FRAC", "1.0"))
++            self._ht_iter = 0
++            if self._ht_action:
++                _adim = int(getattr(self.config, "max_action_dim", 64))
++                _head = torch.nn.Linear(_adim, 1)
++                torch.nn.init.zeros_(_head.weight)
++                torch.nn.init.zeros_(_head.bias)
++                # registered INSIDE self.net so the optimizer (built from net)
++                # sees it and DDP/FSDP syncs its grads
++                self.net.llm2action_ht_sigma_head = _head
++                if self._ht_learn_nu:
++                    _nhead = torch.nn.Linear(_adim, 1)
++                    torch.nn.init.zeros_(_nhead.weight)
++                    torch.nn.init.zeros_(_nhead.bias)
++                    self.net.llm2action_ht_nu_head = _nhead
++                    log.critical("[c3-learnnu] per-sample nu head ON: init nu=1024, bounds [2,8192]")
++                log.critical(
++                    f"[HT] action head ON: sbias={self._ht_sbias} df={self._ht_df} "
++                    f"adim={_adim} beta={self._ht_beta} "
++                    f"hold_frac={self._ht_beta_hold_frac} end_frac={self._ht_beta_end_frac} "
++                    f"max_iter={self._ht_max_iter}"
++                )
+             self.rectified_flow_action = RectifiedFlow(
+                 velocity_field=self.net,
+                 train_time_distribution=self.config.rectified_flow_training_config.train_time_action_distribution,
+@@ -1075,6 +1123,7 @@
+                 - Tensor: The computed loss for the training step as a PyTorch Tensor.
+ 
+         """
++        self._ht_iter = int(iteration)  # for the beta-NLL schedule in _ht_action_loss
+         input_text_indexes, sequence_plans, gen_data_clean, memory_info, data_resolutions, vae_pixel_shapes = (
+             self._get_training_inputs(data_batch, iteration)
+         )
+@@ -1287,6 +1336,154 @@
+ 
+         return output_batch, loss
+ 
++    def _ht_action_loss_nurms(self, pred, target, condition_mask, raw_action_dim=None):
++        """Median-pinned gate: nu_t = c^2 * EMA[median(S/sigma^2)] (detached), mvt NLL."""
++        c = float(getattr(self, "_ht_nu_c", 2.5))
++        S, SIG, D = [], [], []
++        for i, (p, t) in enumerate(zip(pred, target)):
++            p32, t32 = p.float(), t.float()
++            r = t32 - p32
++            mask = torch.ones_like(r)
++            cm = condition_mask[i]
++            if cm is not None:
++                m = cm.float().reshape(-1, 1)[: r.shape[0]]
++                mask = mask * (1.0 - m)
++            if raw_action_dim is not None and raw_action_dim[i] is not None:
++                d = int(raw_action_dim[i])
++                if d < r.shape[-1]:
++                    mask[:, d:] = 0.0
++            D.append(mask.sum().clamp(min=1.0))
++            S.append(((r * mask) ** 2).sum())
++            s_raw = self.net.llm2action_ht_sigma_head(p32.detach()).mean()
++            SIG.append(torch.nn.functional.softplus(s_raw + self._ht_sbias) + 1e-3)
++        if not S:
++            return pred[0].sum() * 0.0
++        S_t, SIG_t, D_t = torch.stack(S), torch.stack(SIG), torch.stack(D)
++        u = (S_t / SIG_t ** 2).detach()
++        med = u.median()
++        ema = getattr(self, "_nu_ema", None)
++        self._nu_ema = med.clone() if ema is None else 0.99 * ema + 0.01 * med
++        nu = (c ** 2) * self._nu_ema
++        nll = 0.5 * (nu + D_t) * torch.log1p(S_t / (nu * SIG_t ** 2)) + D_t * torch.log(SIG_t)
++        out = (nll / D_t).mean()
++        self._nurms_calls = getattr(self, "_nurms_calls", 0) + 1
++        _r0 = (not torch.distributed.is_initialized()) or torch.distributed.get_rank() == 0
++        if _r0 and (self._nurms_calls == 1 or self._nurms_calls % 100 == 1):
++            _rms = float((S_t / D_t).mean().sqrt())
++            log.critical(f"[c3-nurms] call={self._nurms_calls} c={c} nu={float(nu):.1f} med_u={float(self._nu_ema):.1f} "
++                         f"frac_past_knee={float((u > nu).float().mean()):.3f} sigma={float(SIG_t.median()):.4f} "
++                         f"residual_rms={_rms:.4f} nll={float(out):.4f}")
++        return out
++
++    def _ht_action_loss(self, pred, target, condition_mask, raw_action_dim=None):
++        """Heteroscedastic Student-t NLL on the single-pass action residual.
++
++        With sigma pinned to 1 the residual (a_hat - x0) equals (v - v_hat), so
++        this operates directly on the velocity residual. sigma is a per-sample
++        scalar from a zero-init linear head on the (detached) prediction, so it
++        starts at softplus(sbias) and learns the residual scale without letting
++        the mean path game it.
++        """
++        if getattr(self, "_ht_nu_rms", False):
++            return self._ht_action_loss_nurms(pred, target, condition_mask, raw_action_dim)
++        df = float(self._ht_df)
++        _nu0 = float(getattr(self, "_ht_nu_start", 0.0))
++        _tot = int(getattr(self, "_ht_max_iter", 0))
++        if _nu0 > df and _tot > 0:
++            _ef = max(1e-6, float(getattr(self, "_ht_nu_end_frac", 1.0)))
++            _pg = min(1.0, (int(getattr(self, "_ht_iter", 0)) / _tot) / _ef)
++            df = 1.0 / ((1.0 / _nu0) + ((1.0 / df) - (1.0 / _nu0)) * _pg)
++            if int(getattr(self, "_ht_iter", 0)) % 100 == 0 and (
++                (not torch.distributed.is_initialized()) or torch.distributed.get_rank() == 0):
++                print(f"[nu-anneal] iter {self._ht_iter}/{_tot} nu={df:.3f}", flush=True)
++        _hgs = int(getattr(self, "_ht_hg_steps", 0) or 0)
++        _in_hg = _hgs > 0 and int(getattr(self, "_ht_iter", 0)) < _hgs
++        if _hgs > 0 and getattr(self, "_ht_hg_last", None) != _in_hg:
++            self._ht_hg_last = _in_hg
++            print(f"[c3-hg] iter {getattr(self, '_ht_iter', 0)}: loss="
++                  f"{'HETERO-GAUSSIAN' if _in_hg else 'HETERO-T'} (hg_steps={_hgs})",
++                  flush=True)
++        losses = []
++        for i, (p, t) in enumerate(zip(pred, target)):
++            p32, t32 = p.float(), t.float()
++            r = t32 - p32  # [T, A]
++            mask = torch.ones_like(r)
++            cm = condition_mask[i]
++            if cm is not None:
++                m = cm.float().reshape(-1, 1)[: r.shape[0]]
++                mask = mask * (1.0 - m)  # 1 = noisy/generated, 0 = conditioning
++            if raw_action_dim is not None and raw_action_dim[i] is not None:
++                d = int(raw_action_dim[i])
++                if d < r.shape[-1]:
++                    mask[:, d:] = 0.0
++            d_eff = mask.sum().clamp(min=1.0)
++            sum_r2 = ((r * mask) ** 2).sum()
++            s_raw = self.net.llm2action_ht_sigma_head(p32.detach()).mean()
++            sigma = torch.nn.functional.softplus(s_raw + self._ht_sbias) + 1e-3
++            if getattr(self, "_ht_mse", False):
++                if not getattr(self, "_mse_banner", False):
++                    self._mse_banner = True
++                    print(f"[c3-mse] single-pass MSE control: 0.5*sum_r2, d_eff={float(d_eff)} (sigma head kept in graph, no gradient)", flush=True)
++                nll = 0.5 * sum_r2 + 0.0 * sigma          # + 0*sigma keeps the sigma head in the DDP graph
++            elif _in_hg:
++                nll = 0.5 * sum_r2 / sigma**2 + d_eff * torch.log(sigma)
++            elif getattr(self, "_ht_learn_nu", False):
++                n_raw = self.net.llm2action_ht_nu_head(p32.detach()).mean()
++                nu = torch.exp(0.6931471805599453
++                               + (9.010913347279288 - 0.6931471805599453)
++                               * torch.sigmoid(n_raw + 1.0986122886681098))
++                half = 0.5 * (nu + d_eff)
++                nll = half * torch.log1p(sum_r2 / (nu * sigma**2))                     + d_eff * torch.log(sigma)                     - torch.lgamma(half) + torch.lgamma(0.5 * nu)                     + 0.5 * d_eff * torch.log(nu)
++                if not hasattr(self, "_lnu_vals"):
++                    self._lnu_vals = []
++                self._lnu_vals.append(float(nu.detach()))
++                if len(self._lnu_vals) >= 400 and (
++                        (not torch.distributed.is_initialized()) or torch.distributed.get_rank() == 0):
++                    import numpy as _np
++                    _v = _np.array(self._lnu_vals); self._lnu_vals = []
++                    print(f"[c3-learnnu] nu q10/50/90 = {_np.percentile(_v,10):.1f}/"
++                          f"{_np.percentile(_v,50):.1f}/{_np.percentile(_v,90):.1f}", flush=True)
++            elif getattr(self, "_ht_mvt", False):
++                if not getattr(self, "_mvt_banner", False):
++                    self._mvt_banner = True
++                    print(f"[c3-mvt] multivariate Student-t: nu={df} (literal), d_eff={float(d_eff)}",
++                          flush=True)
++                nll = 0.5 * (df + d_eff) * torch.log1p(sum_r2 / (df * sigma**2)) \
++                    + d_eff * torch.log(sigma)
++            else:
++                nll = 0.5 * (df + 1.0) * torch.log1p(sum_r2 / (df * sigma**2 * d_eff)) * d_eff \
++                    + d_eff * torch.log(sigma)
++            _beta = float(getattr(self, "_ht_beta", 0.0))
++            _end = float(getattr(self, "_ht_beta_end_frac", 0.0))
++            _total = int(getattr(self, "_ht_max_iter", 0))
++            if _beta > 0.0 and _end > 0.0 and _total > 0:
++                _hold = float(getattr(self, "_ht_beta_hold_frac", 0.0))
++                _f = int(getattr(self, "_ht_iter", 0)) / _total
++                if _f > _hold:
++                    _beta = _beta * max(0.0, 1.0 - (_f - _hold) / max(1e-8, _end - _hold))
++            if _beta > 0.0 and not getattr(self, "_ht_mse", False):
++                # beta-NLL: cancel the 1/sigma^2 damping so high-sigma samples keep
++                # their learning signal (Seitzer et al. 2022).
++                nll = nll * (sigma.detach() ** (2.0 * _beta))
++            losses.append(nll / d_eff)
++        out = torch.stack(losses).mean() if losses else pred[0].sum() * 0.0
++        if not hasattr(self, "_ht_calls"):
++            self._ht_calls = 0
++        self._ht_calls += 1
++        _r0 = (not torch.distributed.is_initialized()) or torch.distributed.get_rank() == 0
++        if (self._ht_calls <= 3 or self._ht_calls % 100 == 1) and _r0:
++            with torch.no_grad():
++                _p = pred[0].float()
++                _s = torch.nn.functional.softplus(
++                    self.net.llm2action_ht_sigma_head(_p.detach()).mean() + self._ht_sbias
++                ) + 1e-3
++                _r = (target[0].float() - _p).pow(2).mean().sqrt()
++            log.critical(
++                f"[HT] call={self._ht_calls} action_nll={float(out):.4f} "
++                f"sigma={float(_s):.4f} residual_rms={float(_r):.4f}"
++            )
++        return out
++
+     def _compute_flow_matching_loss(
+         self,
+         pred: list[torch.Tensor],
+@@ -1459,21 +1656,37 @@
+             losses_dict["flow_matching_loss_vision"] = torch.tensor(0.0, **self.tensor_kwargs_fp32)
+ 
+         if self.config.action_gen:
++            if not hasattr(self, "_dbg_act"):
++                self._dbg_act = 0
++            self._dbg_act += 1
++            if self._dbg_act <= 2 and ((not torch.distributed.is_initialized()) or torch.distributed.get_rank() == 0):
++                log.critical(
++                    f"[HT-DBG] action_gen=True action_is_none={data_batch_packed.action is None} "
++                    f"ht_flag={getattr(self, chr(39)+chr(95)+chr(104)+chr(116)+chr(95)+chr(97)+chr(99)+chr(116)+chr(105)+chr(111)+chr(110)+chr(39), False)}"
++                )
+             if data_batch_packed.action is not None:
+                 assert isinstance(data_batch_packed.action.condition_mask, list), (
+                     "Action condition mask must be a list of tensors for loss computation"
+                 )
+                 assert gen_data_noised.vt_target_action is not None, "Action targets required when action_gen is True"
+-                fm_loss_action, _ = self._compute_flow_matching_loss(
+-                    pred=out_net["preds_action"],
+-                    target=gen_data_noised.vt_target_action,
+-                    condition_mask=data_batch_packed.action.condition_mask,
+-                    timesteps=ts_action,
+-                    has_valid_tokens=has_noisy_tokens(data_batch_packed.action),
+-                    rectified_flow=self.rectified_flow_action,
+-                    raw_action_dim=data_batch_packed.action.raw_action_dim,
+-                    normalize_by_active=normalize_by_active,
+-                )
++                if getattr(self, "_ht_action", False):
++                    fm_loss_action = self._ht_action_loss(
++                        pred=out_net["preds_action"],
++                        target=gen_data_noised.vt_target_action,
++                        condition_mask=data_batch_packed.action.condition_mask,
++                        raw_action_dim=data_batch_packed.action.raw_action_dim,
++                    )
++                else:
++                    fm_loss_action, _ = self._compute_flow_matching_loss(
++                        pred=out_net["preds_action"],
++                        target=gen_data_noised.vt_target_action,
++                        condition_mask=data_batch_packed.action.condition_mask,
++                        timesteps=ts_action,
++                        has_valid_tokens=has_noisy_tokens(data_batch_packed.action),
++                        rectified_flow=self.rectified_flow_action,
++                        raw_action_dim=data_batch_packed.action.raw_action_dim,
++                        normalize_by_active=normalize_by_active,
++                    )
+ 
+                 # Yihuai: In case the video loss is too large (1.5) and covers the action loss (0.05), we scale up the action loss to match the video loss to improve action precision.
+                 total_loss += fm_loss_action * rf_cfg.action_loss_weight
+@@ -1744,6 +1957,10 @@
+             .unsqueeze(1)
+         )  # [B,1]
+         timesteps = sigmas * max_timestep  # [B,1]
++        if getattr(self, '_ht_action', False):
++            # single pass: sigma == 1 => x_t is pure noise, a_hat = x_t - v_hat
++            sigmas = torch.ones_like(sigmas)
++            timesteps = torch.ones_like(timesteps) * max_timestep
+         return timesteps, sigmas
+ 
+     def _get_train_noise_level_sound(self, batch_size: int) -> tuple[torch.Tensor, torch.Tensor]:
+--- a/cosmos_framework/scripts/action_policy_server_libero.py
++++ b/cosmos_framework/scripts/action_policy_server_libero.py
+@@ -880,6 +880,7 @@
+         if not isinstance(image_size, int) or image_size <= 0:
+             raise ValueError("'image_size' must be a positive integer")
+ 
++        _item_seed = req.get("seed")
+         img_chw_uint8 = _decode_base64_png_to_rgb_uint8(image_b64)
+         img_h, img_w = img_chw_uint8.shape[-2:]
+         # Multi-view (non-square) images: scale proportionally, matching height to image_size.
+@@ -919,6 +920,7 @@
+                 append_resolution_info=self.append_resolution_info,
+             )
+         return {
++            "seed": int(_item_seed) if _item_seed is not None else None,
+             "img_chw_uint8": img_chw_uint8,
+             "video_padded": pad_dict["video"],
+             "padded_image_size": pad_dict["image_size"],
+@@ -960,7 +962,7 @@
+                 samples = self.model.generate_samples_from_batch(
+                     batch,
+                     guidance=self.cfg.guidance,
+-                    seed=[self.cfg.seed] * n,
++                    seed=[(p["seed"] if p.get("seed") is not None else self.cfg.seed) for p in preps],
+                     num_steps=self.cfg.num_steps,
+                     has_negative_prompt=False,
+                 )

@@ -1,0 +1,21 @@
+# Hydra training entry point.
+defaults:
+- experiment_schema
+- dataset: robomimic_state
+- policy: state_transformer
+- objective: ht
+- training: robomimic/transformer
+- evaluation: robomimic_state
+- _self_
+- experiment: robomimic/state/lift/ph/ht_transformer_nu200
+- override hydra/job_logging: disabled
+name: ht_regression
+seed: 42
+training:
+  output_dir: outputs/${name}/${now:%Y%m%d_%H%M%S_%f}_seed${seed}
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+  job:
+    chdir: false

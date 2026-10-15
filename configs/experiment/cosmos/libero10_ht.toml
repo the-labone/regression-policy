@@ -1,0 +1,44 @@
+# Native video flow matching; only action inputs/target/loss become direct HT.
+[job]
+task = "vfm"
+experiment = "action_policy_libero_nano"
+project = "cosmos3_action_libero"
+group = "video_direct_action_sft"
+name = "libero10_ht"
+wandb_mode = "disabled"
+
+[model]
+precision = "bfloat16"
+max_num_tokens_after_packing = 74000
+
+[dataloader_train]
+max_samples_per_batch = 8
+
+[model.parallelism]
+data_parallel_shard_degree = 8
+data_parallel_replicate_degree = 1
+
+[model.activation_checkpointing]
+mode = "full"
+save_ops_regex = ["fmha"]
+
+[model.tokenizer]
+vae_path = "${oc.env:WAN_VAE_PATH}"
+
+[optimizer]
+lr = 5.0e-05
+# Restore the exact native trainable-module list, including the video output head.
+keys_to_select = ["moe_gen", "time_embedder", "vae2llm", "llm2vae", "action2llm", "llm2action", "action_modality_embed"]
+
+[scheduler]
+cycle_lengths = [16000]
+warm_up_steps = [500]
+
+[trainer]
+max_iter = 2000
+logging_iter = 50
+grad_accum_iter = 32
+
+[checkpoint]
+load_path = "${oc.env:BASE_CHECKPOINT_PATH}"
+save_iter = 500
