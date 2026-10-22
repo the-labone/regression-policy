@@ -1,4 +1,4 @@
-<h1 align="center">Residual Modeling for Regression Policies</h1>
+<h1 align="center">Residual Modeling Closes the Regression and Generative Policy Gap in Robot Learning</h1>
 
 <p align="center">
   <a href="https://arxiv.org/abs/2610.12231"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/paper-dark.svg"><source media="(prefers-color-scheme: light)" srcset="assets/readme/paper.svg"><img src="assets/readme/paper.svg" width="105" height="42" alt="Paper"></picture></a>&nbsp;&nbsp;
