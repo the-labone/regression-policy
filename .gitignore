@@ -2,6 +2,7 @@ __pycache__/
 __MACOSX/
 tests/*
 !tests/test_vla_training.py
+!tests/test_gr00t_native.py
 /videos/
 *.py[cod]
 .ruff_cache/

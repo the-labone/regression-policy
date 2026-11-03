@@ -1,0 +1,35 @@
+--- a/gr00t/configs/training/training_config.py
++++ b/gr00t/configs/training/training_config.py
+@@ -101,6 +101,7 @@
+ 
+     # DDP
+     use_ddp: bool = False
++    torch_compile: bool = False  # HF Trainer dynamo compile of model fwd/bwd
+     ddp_bucket_cap_mb: int = 100
+ 
+     # Hardware
+--- a/gr00t/experiment/experiment.py
++++ b/gr00t/experiment/experiment.py
+@@ -288,6 +288,7 @@
+         bf16=config.training.bf16,
+         tf32=config.training.tf32,
+         gradient_checkpointing=config.training.gradient_checkpointing,
++        torch_compile=config.training.torch_compile,
+         optim=config.training.optim,
+         dataloader_num_workers=config.training.dataloader_num_workers,
+         report_to="wandb" if config.training.use_wandb else "none",
+--- a/gr00t/data/stats.py
++++ b/gr00t/data/stats.py
+@@ -271,10 +271,10 @@
+         fingerprints = {}
+     lowdim_set = set(lowdim_features)
+     dropped = False
+-    for f in [k for k in list(existing) if k not in lowdim_set and isinstance(existing[k], dict)]:
++    for f in [k for k in list(existing) if k not in le_features and isinstance(existing[k], dict)]:
+         del existing[f]
+         dropped = True
+-    for f in [k for k in list(fingerprints) if k not in lowdim_set]:
++    for f in [k for k in list(fingerprints) if k not in le_features]:
+         del fingerprints[f]
+         dropped = True
+ 

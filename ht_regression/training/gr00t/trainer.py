@@ -51,11 +51,13 @@ def train(recipe, *, sigma_lr_multiplier):
     from gr00t.experiment.experiment import run
     from gr00t.experiment.trainer import Gr00tTrainer
     from gr00t.model.gr00t_n1d7 import processing_gr00t_n1d7 as processing
-    from gr00t.model.gr00t_n1d7.gr00t_n1d7 import Gr00tN1d7ActionHead
 
-    if "gr00t_loss" not in inspect.getsource(Gr00tN1d7ActionHead.forward):
-        raise RuntimeError("Install the release gr00t-training.patch before training.")
-    config = restore_modalities(Config().load_dict(recipe))
+    from ...policies.gr00t.config import GR00TConfig
+    from ...policies.gr00t.native import GR00TNativeActionHead
+    from .pipeline import register_gr00t_training
+
+    register_gr00t_training()
+    config = restore_modalities(Config(model=GR00TConfig()).load_dict(recipe))
     config.validate()
     if primitive(config.model) != recipe["model"]:
         raise ValueError("Native model defaults changed the training recipe.")
@@ -98,7 +100,7 @@ def train(recipe, *, sigma_lr_multiplier):
     write_manifest(
         recipe["training"]["output_dir"],
         dict(recipe=recipe, sigma_lr_multiplier=sigma_lr_multiplier),
-        sources=[Path(inspect.getfile(Gr00tN1d7ActionHead)), Path(__file__)],
+        sources=[Path(inspect.getfile(GR00TNativeActionHead)), Path(__file__)],
     )
     Gr00tTrainer.create_optimizer = create_optimizer
     processing.build_processor = build_processor

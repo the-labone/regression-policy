@@ -27,7 +27,10 @@ def _cached_processor(enabled):
     import gr00t.model.gr00t_n1d7.processing_gr00t_n1d7 as processing
     from huggingface_hub import snapshot_download
 
+    from ...policies.gr00t.model import loading_options
+
     original = processing.build_processor
+    token = loading_options.set({"local_files_only": True})
 
     def build(name, kwargs):
         local = (
@@ -42,6 +45,7 @@ def _cached_processor(enabled):
         yield
     finally:
         processing.build_processor = original
+        loading_options.reset(token)
 
 
 def load_gr00t_checkpoint(path, *, embodiment, device="cuda", local_files_only=False):
@@ -53,10 +57,14 @@ def load_gr00t_checkpoint(path, *, embodiment, device="cuda", local_files_only=F
     """
     from gr00t.policy.gr00t_policy import Gr00tPolicy
 
+    from ...policies.gr00t.model import register_gr00t_models
+
+    register_gr00t_models()
+
     path = Path(path).expanduser().resolve(strict=True)
     config = json.loads((path / "config.json").read_text())
     method = config.get("loss_type", "flow")
-    if method not in ("flow", "hetero_t", "mse"):
+    if method not in ("flow", "hetero_t", "mse", "l1"):
         raise ValueError(f"Unsupported GR00T objective: {method}.")
     processor_dir = (
         path if (path / "processor_config.json").is_file() else path / "processor"

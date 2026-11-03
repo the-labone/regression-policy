@@ -91,6 +91,8 @@ uv run scripts/install.py robomimic
 | `pi05` | π0.5 training / evaluation on LIBERO |
 | `cosmos` | Cosmos training / evaluation on LIBERO |
 
+GR00T uses the official [Isaac-GR00T source](https://github.com/NVIDIA/Isaac-GR00T/tree/b9955401d50c92a29258732e3ad6ccd579f1bdc0). HT configuration, regression heads and checkpoint loading live in [`ht_regression/policies/gr00t`](ht_regression/policies/gr00t); no separate HT fork is required. N1.7 uses the official [Cosmos-Reason2-2B backbone](https://huggingface.co/nvidia/Cosmos-Reason2-2B), so its model assets must be cached or accessible through your Hugging Face account.
+
 <a id="training"></a>
 
 ## <picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/icons/training-dark.svg"><img src="assets/readme/icons/training.svg" width="24" height="28" align="absmiddle" alt=""></picture>&nbsp;&nbsp;Training

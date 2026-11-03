@@ -20,7 +20,7 @@ class GR00TInference(nn.Module):
 
     def __init__(self, policy, *, method, num_inference_steps):
         super().__init__()
-        if method not in ("flow", "hetero_t", "mse"):
+        if method not in ("flow", "hetero_t", "mse", "l1"):
             raise ValueError(f"Unsupported GR00T inference method: {method}.")
         self.policy, self.method = policy, method
         self.sampler = (

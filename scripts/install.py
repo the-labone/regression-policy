@@ -28,8 +28,8 @@ REPOS = {
         "277ab9588ad7a4f4b55cf75508b44aa67ec171f0",
     ),
     "gr00t": (
-        "https://github.com/zyc00/GROOT_HT.git",
-        "b861ec9090b841cc2bbae3cdc6b8d2a384a3660b",
+        "https://github.com/NVIDIA/Isaac-GR00T.git",
+        "b9955401d50c92a29258732e3ad6ccd579f1bdc0",
     ),
     "gr1": (
         "https://github.com/robocasa/robocasa-gr1-tabletop-tasks.git",
@@ -187,10 +187,10 @@ class Installer:
 
     def sync(self, source, name, version, *extras):
         path = ENVS / name
-        # GR00T ignores uv.lock in its public checkout. Ship the validated lock
-        # here so a fresh clone has the same environment as a cached checkout.
+        # The release lock matches our platform patch and pinned dependencies.
+        # Replace upstream's lock too, so fresh and cached installs agree.
         bundled_lock = ROOT / "environments" / f"{name}.uv.lock"
-        if bundled_lock.is_file() and not (source / "uv.lock").exists():
+        if bundled_lock.is_file():
             print(f"Using bundled {name} lockfile", flush=True)
             if not self.dry_run:
                 shutil.copyfile(bundled_lock, source / "uv.lock")
@@ -323,7 +323,7 @@ class Installer:
     def gr00t(self, benchmark):
         source = self.checkout("gr00t")
         self.patch(source, "gr00t-install.patch")
-        self.patch(source, "gr00t-training.patch")
+        self.patch(source, "gr00t-compat.patch")
         model = self.sync(source, "gr00t", "3.12")
         self.package(model)
         sim = self.venv(benchmark, "3.12" if benchmark == "gr1" else "3.10")
