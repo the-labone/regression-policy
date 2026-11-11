@@ -1,0 +1,17 @@
+# @package _global_
+defaults:
+- /experiment/robomimic/state/tool_hang/ph/ht_transformer_nu200
+- override /objective: mse
+- _self_
+
+name: tool_hang_ph_abs_mse_transformer_6stage_overlap8
+
+dataset:
+  _target_: experiments.toolhang_overlap.dataset.OverlapStateDataset
+  overlap_steps: 8
+
+policy:
+  _target_: experiments.toolhang_overlap.policy.OverlapStagePolicy
+
+objective:
+  _target_: experiments.toolhang_overlap.objective.OverlapMSEObjective

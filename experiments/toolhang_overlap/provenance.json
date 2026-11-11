@@ -1,0 +1,16 @@
+{
+  "upstream_commit": "83354cc2d812b2b3c425e6c5d5676e1cc2bc8a2e",
+  "dataset_sha256": "b19746f9e5495a55d064a49db1cdaf1e57fe034dad1ba9efcbc7e934d3f5bf92",
+  "frozen_source_run": "toolhang_multistage6_overlap8_mse_original_20261109_s41",
+  "runtime_sha256": {
+    "experiments/toolhang_multistage/policy.py": "bc4e71b2a15d2398a342281c165eb6f7d2f62726a9c02c14c68be30113346ede",
+    "experiments/toolhang_overlap/policy.py": "1340d9a61038d6a3e116fd97475cc9bbd0ffc263f9df5fd8b61331fbffb6b310",
+    "experiments/toolhang_overlap/dataset.py": "fcc5fb48090ed64882b10038802155de2acc0c5afef95a99254ee25b513e47ff",
+    "experiments/toolhang_overlap/objective.py": "3d6d94b4c33a5699a0c462fa711c54d365556ac01d25607f5c093c877f4622fd"
+  },
+  "notes": [
+    "Runtime modules are byte-identical to the original six-stage overlap8 experiment.",
+    "Machine-specific managers and launchers are omitted; use the native Hydra trainer.",
+    "Unit test imports are portable; the optional real-data test reads TOOLHANG_DATASET."
+  ]
+}

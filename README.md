@@ -137,6 +137,10 @@ Lift uses batch 64 and a 500-epoch budget, evaluated every 50 epochs.
 | `experiment=...` | [Task and backbone configurations](configs/experiment/robomimic) |
 | `objective=...` | `ht`, `mse`, `flow`, `mip`, `diffusion` |
 
+The experimental [multi-stage MSE recipe](experiments/toolhang_overlap/README.md)
+provides the six-stage Tool-Hang policy with overlapping training phases,
+reproduction commands, and instructions for adapting phase routing to other tasks.
+
 ### VLA / WAM
 
 #### 1. Download / prepare data
