@@ -4,6 +4,8 @@ This extends the Tool-Hang experiment to the original robosuite 1.2
 TwoArmTransport task with opposed Panda arms and the default table/bin geometry.
 It uses the original MH ABS state data, with 59D observations and 20D model-space
 actions (14D native actions for two arms). No demonstrations are filtered or edited.
+The verified original ABS dataset SHA256 is
+`2034f404d1e9dd04514c443f9b2fb2bda99f320b46acd9ffc9983fdbec0f9d95`.
 
 From the repository root, install the pinned environment with
 `uv run scripts/install.py robomimic`, then run:

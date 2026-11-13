@@ -140,6 +140,8 @@ Lift uses batch 64 and a 500-epoch budget, evaluated every 50 epochs.
 The experimental [multi-stage MSE recipe](experiments/toolhang_overlap/README.md)
 provides the six-stage Tool-Hang policy with overlapping training phases,
 reproduction commands, and instructions for adapting phase routing to other tasks.
+The [Transport-MH extension](experiments/transport_multistage/README.md) adds a
+task-specific six-stage router and inherits the original Transport training recipe.
 
 ### VLA / WAM
 
