@@ -28,25 +28,25 @@ Files: `experiments/transport_multistage/{policy.py,dataset.py,test_transport.py
 Interface: `stage_ids(observation, thresholds=None) -> Tensor[B]`,
 `TransportStagePolicy`, `TransportOverlapDataset`.
 
-- [ ] Write failing behavior tests for geometric states, weighted gradients,
+- [x] Write failing behavior tests for geometric states, weighted gradients,
   inference metadata isolation, checkpoint compatibility and native data parity.
-- [ ] Run `python -m unittest experiments.transport_multistage.test_transport`;
+- [x] Run `python -m unittest experiments.transport_multistage.test_transport`;
   expected failure because the Transport implementation is missing.
-- [ ] Implement router, six-expert policy, dataset labels and inherited config.
-- [ ] Run new and existing Tool-Hang tests; expected all applicable tests pass.
-- [ ] Commit the task and record test evidence.
+- [x] Implement router, six-expert policy, dataset labels and inherited config.
+- [x] Run new and existing Tool-Hang tests; expected all applicable tests pass.
+- [x] Commit the task and record test evidence.
 
 ### Task 2: Frozen preflight and launch
 
 Files: local run's `prepare.py`, provenance, frozen `code`, smoke report, launcher.
 Consumes Task 1's classes and Hydra config; produces live native training run.
 
-- [ ] Compare resolved native and new configs allowing only name and new
+- [x] Compare resolved native and new configs allowing only name and new
   dataset/policy/objective targets and overlap metadata; verify all base source
   and installed package hashes/versions. Audit training/validation stage coverage.
-- [ ] Smoke test three compiled GPU updates, native simulator rollout and EMA
+- [x] Smoke test three compiled GPU updates, native simulator rollout and EMA
   checkpoint load; expected finite losses/gradients, zero simulator failures.
-- [ ] Review the change with a fresh reviewer; address material findings.
-- [ ] Freeze reviewed source, launch the full native job, confirm metrics advance
+- [x] Review the change with a fresh reviewer; address material findings.
+- [x] Freeze reviewed source, launch the full native job, confirm metrics advance
   and report actual step and full budget. Publish the extension on the existing
   user-requested experiment branch after checks pass.
