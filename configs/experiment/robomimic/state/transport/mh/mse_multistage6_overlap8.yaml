@@ -1,0 +1,15 @@
+# @package _global_
+defaults:
+- /experiment/robomimic/state/transport/mh/ht_transformer_nu200
+- override /objective: mse
+- _self_
+name: transport_mh_abs_mse_transformer_multistage6_overlap8
+dataset:
+  _target_: experiments.transport_multistage.dataset.TransportOverlapDataset
+  overlap_steps: 8
+  thresholds: ${policy.thresholds}
+policy:
+  _target_: experiments.transport_multistage.policy.TransportStagePolicy
+  thresholds: null
+objective:
+  _target_: experiments.toolhang_overlap.objective.OverlapMSEObjective

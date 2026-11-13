@@ -104,7 +104,8 @@ configuration that inherits that task's native state-policy recipe.
    rollout works without `expert_weights`. Test checkpoint/EMA reload and a
    short native simulator rollout with the new task's observation layout.
 
-This branch does not yet provide validated phase definitions for other tasks.
+Transport-MH now has a separate [six-stage implementation](../transport_multistage/README.md)
+with its own geometry and native Transport recipe.
 Phase separation also increases model capacity and does not guarantee Gaussian
 residuals; compare the new policy with the same task's native baseline.
 
